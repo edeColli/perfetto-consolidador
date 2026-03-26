@@ -1,0 +1,8 @@
+charset-normalizer==3.4.6
+cryptography==46.0.6
+flet==0.28.3
+flet-cli==0.28.3
+flet-desktop==0.28.3
+openpyxl==3.1.5
+pdfminer.six==20251230
+pdfplumber==0.11.9

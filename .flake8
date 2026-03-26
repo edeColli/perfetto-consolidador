@@ -1,0 +1,10 @@
+[flake8]
+max-line-length = 150
+exclude =
+    .git,
+    __pycache__,
+    migrations,
+    env,
+    venv
+per-file-ignores =
+    app/settings/*.py: F401,F403,F405
