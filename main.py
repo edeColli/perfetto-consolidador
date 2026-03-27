@@ -1,5 +1,5 @@
 import flet as ft
-from adiantamento_ import AdiantamentoView
+from adiantamento import AdiantamentoView
 
 
 def main(page: ft.Page):
