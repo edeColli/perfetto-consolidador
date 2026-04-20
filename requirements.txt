@@ -4,5 +4,7 @@ flet==0.28.3
 flet-cli==0.28.3
 flet-desktop==0.28.3
 openpyxl==3.1.5
-pdfminer.six==20251230
-pdfplumber==0.11.9
+numpy==2.4.4
+pandas==3.0.2
+olefile==0.47
+xlrd==2.0.2

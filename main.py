@@ -1,9 +1,9 @@
 import flet as ft
-from adiantamento_ import AdiantamentoView
+from processsamento import ProcessamentoView
 
 
 def main(page: ft.Page):
-    page.title = "Perfetto Consolidador de Adiantamentos"
+    page.title = "Perfetto Consolidador - Version 1.0.1"
     page.window_width = 1024
     page.window_height = 768
     page.bgcolor = ft.Colors.BLUE_GREY_200
@@ -17,7 +17,7 @@ def main(page: ft.Page):
         ),
         leading_width=60,
         title=ft.Text(
-            "Perfetto Consolidador de Adiantamentos",
+            "Perfetto Consolidador - Version 1.0.1",
             color=ft.Colors.WHITE,
             weight=ft.FontWeight.BOLD,
         ),
@@ -59,7 +59,7 @@ def main(page: ft.Page):
     )
 
     # ── Conteúdo principal ───────────────────────────────────
-    view = AdiantamentoView(page)
+    view = ProcessamentoView(page)
 
     # FilePicker precisa ser registrado no overlay da página
     page.overlay.append(view.file_picker)
