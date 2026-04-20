@@ -137,6 +137,7 @@ def _parsear_excel(caminho: str) -> dict:
     else:
         xl = pd.ExcelFile(caminho)
     dados: dict = {}
+    pendentes_mult: list = []
 
     for sheet in xl.sheet_names:
         # _DictExcelFile (xls) usa .parse(); pd.ExcelFile (xlsx) usa pd.read_excel
@@ -172,18 +173,11 @@ def _parsear_excel(caminho: str) -> dict:
             if deb_ == 0 and cred_ == 0:
                 continue
 
-            # Detecta múltiplas NFs no mesmo lançamento: "NF 479/482", "NF 30/565"
             mult = _RE_NF_MULT.search(h)
             if mult:
+                # Crédito/débito múltiplo: guarda para segunda passagem
                 nfs = re.findall(r'\d{2,6}', mult.group(0))
-                parte_cred = round(cred_ / len(nfs), 2) if cred_ > 0 else 0.0
-                parte_deb = round(deb_ / len(nfs), 2) if deb_> 0 else 0.0
-                for nf in nfs:
-                    dados.setdefault(nf, {'credito': 0.0, 'debito': 0.0})
-                    if parte_cred > 0:
-                        dados[nf]['credito'] += parte_cred
-                    if parte_deb > 0:
-                        dados[nf]['debito'] += parte_deb
+                pendentes_mult.append({'nfs': nfs, 'cred': cred_, 'deb': deb_})
                 continue
 
             m = _RE_NF.search(h)
@@ -195,6 +189,33 @@ def _parsear_excel(caminho: str) -> dict:
                 dados[nf]['credito'] += cred_
             if deb_ > 0:
                 dados[nf]['debito'] += deb_
+
+    # Segunda passagem: distribui créditos múltiplos proporcionalmente ao débito
+    for p in pendentes_mult:
+        nfs = p['nfs']
+        cred_ = p['cred']
+        deb_ = p['deb']
+
+        if cred_ > 0:
+            # Proporção: cada NF recebe crédito proporcional ao seu débito acumulado
+            total_deb = sum(dados.get(nf, {}).get('debito', 0.0) for nf in nfs)
+            for nf in nfs:
+                dados.setdefault(nf, {'credito': 0.0, 'debito': 0.0})
+                if total_deb > 0:
+                    proporcao = dados[nf]['debito'] / total_deb
+                    dados[nf]['credito'] += round(cred_ * proporcao, 2)
+                else:
+                    dados[nf]['credito'] += round(cred_ / len(nfs), 2)
+
+        if deb_ > 0:
+            total_cred = sum(dados.get(nf, {}).get('credito', 0.0) for nf in nfs)
+            for nf in nfs:
+                dados.setdefault(nf, {'credito': 0.0, 'debito': 0.0})
+                if total_cred > 0:
+                    proporcao = dados[nf]['credito'] / total_cred
+                    dados[nf]['debito'] += round(deb_ * proporcao, 2)
+                else:
+                    dados[nf]['debito'] += round(deb_ / len(nfs), 2)
 
     return dados
 
@@ -380,7 +401,7 @@ class ProcessamentoView:
             self.page.update()
             return
         self.arquivo_selecionado = e.files[0].path
-        self.txt_arquivo.value = f"Arquivo: {e.files[0].name}"
+        self.txt_arquivo.value    = f"Arquivo: {e.files[0].name}"
         self.status.value = "⏳ Processando..."
         self.status.color = ft.Colors.BLUE_600
         self.page.update()
