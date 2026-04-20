@@ -19,7 +19,8 @@ except ImportError:
 #   "PAGAMENTO NF 17272"           → 17272
 #   "COMPRAS DE MERCADORIAS 17272 FORNECEDOR LTDA" → 17272
 #   "COMPRAS PARA USO E CONSUMO 57343 ..." → 57343
-_RE_NF = re.compile(r'\b(\d{4,6})\b')
+_RE_NF = re.compile(r'\b(\d{2,6})\b')
+_RE_NF_MULT = re.compile(r'\b(\d{2,6})(?:/(\d{2,6}))+\b')
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -165,22 +166,35 @@ def _parsear_excel(caminho: str) -> dict:
             if not h or h.lower() == 'nan':
                 continue
 
-            m = _RE_NF.search(h)
-            if not m:
-                continue
-
-            nf = m.group(1)
             deb_ = _to_float(row.get(deb))
             cred_ = _to_float(row.get(cred))
 
             if deb_ == 0 and cred_ == 0:
                 continue
 
+            # Detecta múltiplas NFs no mesmo lançamento: "NF 479/482", "NF 30/565"
+            mult = _RE_NF_MULT.search(h)
+            if mult:
+                nfs = re.findall(r'\d{2,6}', mult.group(0))
+                parte_cred = round(cred_ / len(nfs), 2) if cred_ > 0 else 0.0
+                parte_deb = round(deb_ / len(nfs), 2) if deb_> 0 else 0.0
+                for nf in nfs:
+                    dados.setdefault(nf, {'credito': 0.0, 'debito': 0.0})
+                    if parte_cred > 0:
+                        dados[nf]['credito'] += parte_cred
+                    if parte_deb > 0:
+                        dados[nf]['debito'] += parte_deb
+                continue
+
+            m = _RE_NF.search(h)
+            if not m:
+                continue
+            nf = m.group(1)
             dados.setdefault(nf, {'credito': 0.0, 'debito': 0.0})
             if cred_ > 0:
                 dados[nf]['credito'] += cred_
             if deb_ > 0:
-                dados[nf]['debito']  += deb_
+                dados[nf]['debito'] += deb_
 
     return dados
 
@@ -216,7 +230,7 @@ def exportar_excel(caminho_origem: str, com_diferenca: list, consolidado: list) 
 
     for titulo, dados, cor in [
         ("Com Diferença", com_diferenca, "C62828"),
-        ("Consolidado", consolidado,   "2E7D32"),
+        ("Consolidado",   consolidado,   "2E7D32"),
     ]:
         ws = wb.create_sheet(titulo)
         fill = PatternFill("solid", fgColor=cor)
