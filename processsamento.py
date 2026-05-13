@@ -15,12 +15,12 @@ except ImportError:
     _XLS_SUPPORT = False
 
 # ─── Regex ────────────────────────────────────────────────────────────────────
-# Captura NF em qualquer posição do Histórico:
-#   "PAGAMENTO NF 17272"           → 17272
-#   "COMPRAS DE MERCADORIAS 17272 FORNECEDOR LTDA" → 17272
-#   "COMPRAS PARA USO E CONSUMO 57343 ..." → 57343
-_RE_NF = re.compile(r'\b(\d{2,6})\b')
-_RE_NF_MULT = re.compile(r'\b(\d{2,6})(?:/(\d{2,6}))+\b')
+# 1. NF/NFe + múltiplas separadas por /  (ex: "NF 544/26")
+_RE_NF_MULT = re.compile(r'NFe?\s+(\d{2,6}(?:/\d{2,6})+)', re.I)
+# 2. NF/NFe + número único — captura APENAS o primeiro (ex: "NF 64982 01/03" → 64982)
+_RE_NF_SINGLE = re.compile(r'NFe?\s+(\d{2,6})', re.I)
+# 3. Fallback sem keyword — primeiro número standalone (ex: "VENDAS NESTA DATA 26 COOP")
+_RE_NF_FALLBACK = re.compile(r'(?<!\d)(\d{2,6})(?!\d)')
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ def _abrir_xls(caminho: str) -> pd.ExcelFile:
     while pos < len(raw) - 4:
         rtype, rlen = struct.unpack_from('<HH', raw, pos)
         if rtype == 0x0809 and rlen >= 4:
-            _ = struct.unpack_from('<H', raw, pos + 4)[0]
+            ver = struct.unpack_from('<H', raw, pos + 4)[0]
             kind = struct.unpack_from('<H', raw, pos + 6)[0] if rlen >= 6 else 0
             if kind == 0x0010:  # Worksheet
                 bof_positions.append(pos)
@@ -173,22 +173,24 @@ def _parsear_excel(caminho: str) -> dict:
             if deb_ == 0 and cred_ == 0:
                 continue
 
+            # 1. Múltiplas NFs separadas por / : "NF 544/26", "NF 30/565"
             mult = _RE_NF_MULT.search(h)
             if mult:
-                # Crédito/débito múltiplo: guarda para segunda passagem
                 nfs = re.findall(r'\d{2,6}', mult.group(0))
                 pendentes_mult.append({'nfs': nfs, 'cred': cred_, 'deb': deb_})
                 continue
 
-            m = _RE_NF.search(h)
+            # 2. NF única após keyword NF/NFe (ignora parcelas "01/03" depois)
+            m = _RE_NF_SINGLE.search(h)
+            if not m:
+                # 3. Fallback: históricos sem keyword (ex: "VENDAS NESTA DATA 26 COOP")
+                m = _RE_NF_FALLBACK.search(h)
             if not m:
                 continue
             nf = m.group(1)
             dados.setdefault(nf, {'credito': 0.0, 'debito': 0.0})
-            if cred_ > 0:
-                dados[nf]['credito'] += cred_
-            if deb_ > 0:
-                dados[nf]['debito'] += deb_
+            if cred_ > 0: dados[nf]['credito'] += cred_
+            if deb_ > 0: dados[nf]['debito'] += deb_
 
     # Segunda passagem: distribui créditos múltiplos proporcionalmente ao débito
     for p in pendentes_mult:
@@ -401,7 +403,7 @@ class ProcessamentoView:
             self.page.update()
             return
         self.arquivo_selecionado = e.files[0].path
-        self.txt_arquivo.value    = f"Arquivo: {e.files[0].name}"
+        self.txt_arquivo.value = f"Arquivo: {e.files[0].name}"
         self.status.value = "⏳ Processando..."
         self.status.color = ft.Colors.BLUE_600
         self.page.update()
