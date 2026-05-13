@@ -353,7 +353,7 @@ class TabelaPaginada:
 
 # ─── View principal ───────────────────────────────────────────────────────────
 
-class AdiantamentoView:
+class ProcessamentoView:
 
     def __init__(self, page: ft.Page):
         self.page = page
